@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS todos (
     description TEXT NOT NULL,
     is_done BOOLEAN NOT NULL,
     cover TEXT NULL,
-    urgency VARCHAR(20) DEFAULT 'Low' NOT NULL,
+    urgency VARCHAR(20) DEFAULT 'Mulus' NOT NULL,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL
     );
