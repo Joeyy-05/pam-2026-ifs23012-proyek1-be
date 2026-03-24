@@ -110,14 +110,49 @@ class TodoService(
 
     suspend fun post(call: ApplicationCall) {
         val user = ServiceHelper.getAuthUser(call, userRepo)
-        val request = call.receive<TodoRequest>()
+        val request = TodoRequest()
         request.userId = user.id
 
+        // Membaca data Multipart (Gabungan teks dan file gambar)
+        val multipartData = call.receiveMultipart(formFieldLimit = 1024 * 1024 * 5)
+        multipartData.forEachPart { part ->
+            when (part) {
+                is PartData.FormItem -> {
+                    // Menangkap data teks
+                    when (part.name) {
+                        "title" -> request.title = part.value
+                        "description" -> request.description = part.value
+                        "isDone" -> request.isDone = part.value.toBooleanStrictOrNull() ?: false
+                        "urgency" -> request.urgency = part.value
+                    }
+                }
+                is PartData.FileItem -> {
+                    // Menangkap dan menyimpan file gambar jika ada
+                    if (!part.originalFileName.isNullOrBlank()) {
+                        val ext = part.originalFileName?.substringAfterLast('.', "")?.let { if (it.isNotEmpty()) ".$it" else "" } ?: ""
+                        val fileName = UUID.randomUUID().toString() + ext
+                        val filePath = "uploads/todos/$fileName"
+
+                        withContext(Dispatchers.IO) {
+                            val file = File(filePath)
+                            file.parentFile.mkdirs()
+                            part.provider().copyAndClose(file.writeChannel())
+                            request.cover = filePath
+                        }
+                    }
+                }
+                else -> {}
+            }
+            part.dispose()
+        }
+
+        // Validasi data yang masuk
         val validator = ValidatorHelper(request.toMap())
         validator.required("title", "Judul todo tidak boleh kosong")
         validator.required("description", "Deskripsi tidak boleh kosong")
         validator.validate()
 
+        // Simpan ke database
         val todoId = todoRepo.create(request.toEntity())
 
         val response = DataResponse("success", "Berhasil menambahkan data todo", mapOf(Pair("todoId", todoId)))
